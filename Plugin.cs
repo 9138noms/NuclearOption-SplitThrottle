@@ -41,7 +41,6 @@ public class Plugin : BaseUnityPlugin
     internal static ConfigEntry<string> cfgControllerName;
     internal static ConfigEntry<string> cfgDisabledAircraft;
 
-    // Blacklisted aircraft names (no split throttle)
     internal static HashSet<string> disabledNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     // Engine side cache
@@ -70,11 +69,10 @@ public class Plugin : BaseUnityPlugin
         cfgControllerName = Config.Bind("HOTAS", "ControllerName", "THROTTLE",
             "Partial name match for throttle controller (case-insensitive)");
 
-        // Parse blacklist
         ParseBlacklist();
         cfgDisabledAircraft.SettingChanged += (_, __) => ParseBlacklist();
 
-        // Register Rewired actions
+        // Register Rewired actions via Extra Input Framework
         ExtraInputManager.RegisterAction(ACT_LEFT_UP, InputActionType.Button);
         ExtraInputManager.RegisterAction(ACT_LEFT_DOWN, InputActionType.Button);
         ExtraInputManager.RegisterAction(ACT_RIGHT_UP, InputActionType.Button);
@@ -145,23 +143,19 @@ public class Plugin : BaseUnityPlugin
     {
         static readonly FieldInfo f_controlInputs = AccessTools.Field(typeof(Turbojet), "controlInputs");
         static readonly FieldInfo f_aircraft = AccessTools.Field(typeof(Turbojet), "aircraft");
-
         [ThreadStatic] static float savedThrottle;
 
         static void Prefix(Turbojet __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_controlInputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
 
             savedThrottle = inputs.throttle;
-
             if (!turbojetSideCache.TryGetValue(__instance, out var side))
             {
                 Vector3 localPos = ((Component)aircraft).transform.InverseTransformPoint(__instance.transform.position);
@@ -169,7 +163,6 @@ public class Plugin : BaseUnityPlugin
                      : localPos.x < 0 ? EngineSide.Left : EngineSide.Right;
                 turbojetSideCache[__instance] = side;
             }
-
             inputs.throttle = side switch
             {
                 EngineSide.Left => leftThrottle,
@@ -181,15 +174,12 @@ public class Plugin : BaseUnityPlugin
         static void Postfix(Turbojet __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_controlInputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
-
             inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
         }
     }
@@ -199,23 +189,19 @@ public class Plugin : BaseUnityPlugin
     {
         static readonly FieldInfo f_controlInputs = AccessTools.Field(typeof(DuctedFan), "controlInputs");
         static readonly FieldInfo f_aircraft = AccessTools.Field(typeof(DuctedFan), "aircraft");
-
         [ThreadStatic] static float savedThrottle;
 
         static void Prefix(DuctedFan __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_controlInputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
 
             savedThrottle = inputs.throttle;
-
             if (!ductedFanSideCache.TryGetValue(__instance, out var side))
             {
                 Vector3 localPos = ((Component)aircraft).transform.InverseTransformPoint(((Component)__instance).transform.position);
@@ -223,7 +209,6 @@ public class Plugin : BaseUnityPlugin
                      : localPos.x < 0 ? EngineSide.Left : EngineSide.Right;
                 ductedFanSideCache[__instance] = side;
             }
-
             if (side != EngineSide.Center)
                 inputs.throttle = side == EngineSide.Left ? leftThrottle : rightThrottle;
         }
@@ -231,15 +216,12 @@ public class Plugin : BaseUnityPlugin
         static void Postfix(DuctedFan __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_controlInputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
-
             inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
         }
     }
@@ -250,43 +232,31 @@ public class Plugin : BaseUnityPlugin
         static readonly FieldInfo f_controlInputs = AccessTools.Field(typeof(ConstantSpeedProp), "controlInputs");
         static readonly FieldInfo f_aircraft = AccessTools.Field(typeof(ConstantSpeedProp), "aircraft");
 
-        [ThreadStatic] static float savedThrottle;
-
         static void Prefix(ConstantSpeedProp __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_controlInputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
 
-            savedThrottle = inputs.throttle;
-
             Vector3 localPos = ((Component)aircraft).transform.InverseTransformPoint(__instance.transform.position);
-            if (localPos.x < -0.5f)
-                inputs.throttle = leftThrottle;
-            else if (localPos.x > 0.5f)
-                inputs.throttle = rightThrottle;
-            else
-                inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
+            if (localPos.x < -0.5f) inputs.throttle = leftThrottle;
+            else if (localPos.x > 0.5f) inputs.throttle = rightThrottle;
+            else inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
         }
 
         static void Postfix(ConstantSpeedProp __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_controlInputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
-
             inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
         }
     }
@@ -297,43 +267,31 @@ public class Plugin : BaseUnityPlugin
         static readonly FieldInfo f_inputs = AccessTools.Field(typeof(PropFan), "inputs");
         static readonly FieldInfo f_aircraft = AccessTools.Field(typeof(PropFan), "aircraft");
 
-        [ThreadStatic] static float savedThrottle;
-
         static void Prefix(PropFan __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_inputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
 
-            savedThrottle = inputs.throttle;
-
             Vector3 localPos = ((Component)aircraft).transform.InverseTransformPoint(((Component)__instance).transform.position);
-            if (localPos.x < -0.5f)
-                inputs.throttle = leftThrottle;
-            else if (localPos.x > 0.5f)
-                inputs.throttle = rightThrottle;
-            else
-                inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
+            if (localPos.x < -0.5f) inputs.throttle = leftThrottle;
+            else if (localPos.x > 0.5f) inputs.throttle = rightThrottle;
+            else inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
         }
 
         static void Postfix(PropFan __instance)
         {
             if (!splitActive) return;
-
             var aircraft = f_aircraft.GetValue(__instance) as Aircraft;
             if (aircraft == null) return;
             var localAircraft = GetLocalAircraft();
             if (localAircraft == null || aircraft != localAircraft) return;
-
             var inputs = f_inputs.GetValue(__instance) as ControlInputs;
             if (inputs == null) return;
-
             inputs.throttle = (leftThrottle + rightThrottle) * 0.5f;
         }
     }
@@ -342,11 +300,8 @@ public class Plugin : BaseUnityPlugin
 public class SplitThrottleRunner : MonoBehaviour
 {
     public static SplitThrottleRunner Instance;
-    private float _logTimer;
-    private string _lastAircraft;
 
     void Awake() { Instance = this; }
-
     void OnEnable() { StartCoroutine(UpdateLoop()); }
 
     IEnumerator UpdateLoop()
@@ -363,7 +318,6 @@ public class SplitThrottleRunner : MonoBehaviour
         if (!Plugin.cfgEnabled.Value) return;
         if (GameManager.gameState != GameState.Multiplayer && GameManager.gameState != GameState.SinglePlayer) return;
 
-        // Check if current aircraft is blacklisted
         var aircraft = Plugin.GetLocalAircraft();
         bool wasActive = Plugin.splitActive;
         Plugin.splitActive = aircraft != null && !Plugin.IsDisabledAircraft(aircraft);
@@ -372,22 +326,6 @@ public class SplitThrottleRunner : MonoBehaviour
         {
             Plugin.leftThrottle = aircraft.GetInputs().throttle;
             Plugin.rightThrottle = Plugin.leftThrottle;
-            Plugin.Log.LogInfo($"Split Throttle: ON ({((Component)aircraft).name})");
-        }
-        if (wasActive && !Plugin.splitActive && aircraft != null)
-        {
-            Plugin.Log.LogInfo($"Split Throttle: OFF ({((Component)aircraft).name} blacklisted)");
-        }
-        if (!wasActive && !Plugin.splitActive && aircraft != null)
-        {
-            // Log once when first detecting disabled aircraft
-            _lastAircraft ??= "";
-            string acName = ((Component)aircraft).name;
-            if (acName != _lastAircraft)
-            {
-                Plugin.Log.LogInfo($"[Aircraft] '{acName}' — splitActive={Plugin.splitActive}");
-                _lastAircraft = acName;
-            }
         }
 
         if (!Plugin.splitActive) return;
@@ -417,7 +355,7 @@ public class SplitThrottleRunner : MonoBehaviour
         }
         catch { }
 
-        // HOTAS axis reading
+        // HOTAS direct axis reading
         try
         {
             var player = ReInput.players.GetPlayer(0);
@@ -457,37 +395,21 @@ public class SplitThrottleRunner : MonoBehaviour
         float y = Screen.height / 2f - h / 2f;
 
         GUI.Box(new Rect(x, y, w, h), "");
-
-        var titleStyle = new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.UpperCenter,
-            fontStyle = FontStyle.Bold,
-            fontSize = 11
-        };
+        var titleStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperCenter, fontStyle = FontStyle.Bold, fontSize = 11 };
         GUI.Label(new Rect(x, y + 2, w, 16), "SPLIT THROTTLE", titleStyle);
 
-        float barW = 30, barH = 50;
-        float barY = y + 22;
+        float barW = 30, barH = 50, barY = y + 22;
         DrawBar(x + 20, barY, barW, barH, Plugin.leftThrottle, "L");
         DrawBar(x + w - 20 - barW, barY, barW, barH, Plugin.rightThrottle, "R");
     }
 
     void DrawBar(float x, float y, float w, float h, float value, string label)
     {
-        GUI.DrawTexture(new Rect(x, y, w, h), Texture2D.whiteTexture, ScaleMode.StretchToFill, false, 0,
-            new Color(0.2f, 0.2f, 0.2f, 0.8f), 0, 0);
-
+        GUI.DrawTexture(new Rect(x, y, w, h), Texture2D.whiteTexture, ScaleMode.StretchToFill, false, 0, new Color(0.2f, 0.2f, 0.2f, 0.8f), 0, 0);
         float fillH = h * value;
         Color col = value < 0.8f ? Color.green : (value < 0.95f ? Color.yellow : Color.red);
-        GUI.DrawTexture(new Rect(x, y + h - fillH, w, fillH), Texture2D.whiteTexture, ScaleMode.StretchToFill, false, 0,
-            new Color(col.r, col.g, col.b, 0.8f), 0, 0);
-
-        var style = new GUIStyle(GUI.skin.label)
-        {
-            alignment = TextAnchor.MiddleCenter,
-            fontStyle = FontStyle.Bold,
-            fontSize = 10
-        };
+        GUI.DrawTexture(new Rect(x, y + h - fillH, w, fillH), Texture2D.whiteTexture, ScaleMode.StretchToFill, false, 0, new Color(col.r, col.g, col.b, 0.8f), 0, 0);
+        var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 10 };
         GUI.Label(new Rect(x, y + h, w, 14), $"{label} {value * 100:0}%", style);
     }
 }
