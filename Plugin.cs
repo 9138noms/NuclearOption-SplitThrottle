@@ -11,7 +11,7 @@ using InputFramework;
 using Rewired;
 using UnityEngine;
 
-[BepInPlugin("com.noms.splitthrottle", "SplitThrottle", "1.0.0")]
+[BepInPlugin("com.noms.splitthrottle", "SplitThrottle", "1.1.0")]
 [BepInDependency("experimental.assassin1076.extrainputframework", BepInDependency.DependencyFlags.HardDependency)]
 public class Plugin : BaseUnityPlugin
 {
