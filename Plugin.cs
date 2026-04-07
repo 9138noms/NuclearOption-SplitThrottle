@@ -11,7 +11,7 @@ using InputFramework;
 using Rewired;
 using UnityEngine;
 
-[BepInPlugin("com.noms.splitthrottle", "SplitThrottle", "1.1.0")]
+[BepInPlugin("com.noms.splitthrottle", "SplitThrottle", "1.2.0")]
 [BepInDependency("experimental.assassin1076.extrainputframework", BepInDependency.DependencyFlags.HardDependency)]
 public class Plugin : BaseUnityPlugin
 {
@@ -137,6 +137,20 @@ public class Plugin : BaseUnityPlugin
     }
 
     // === Harmony Patches ===
+
+    // Append mod marker to Application.version so modded clients only match with each other.
+    // This prevents the mod from giving an unfair advantage in lobbies where the host doesn't have it.
+    [HarmonyPatch(typeof(Application), "get_version")]
+    static class ApplicationVersionPatch
+    {
+        const string MOD_MARKER = "+SplitThrottle";
+
+        static void Postfix(ref string __result)
+        {
+            if (__result != null && !__result.Contains(MOD_MARKER))
+                __result = __result + MOD_MARKER;
+        }
+    }
 
     [HarmonyPatch(typeof(Turbojet), "FixedUpdate")]
     static class TurbojetPatch
