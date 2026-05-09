@@ -11,7 +11,7 @@ using InputFramework;
 using Rewired;
 using UnityEngine;
 
-[BepInPlugin("com.noms.splitthrottle", "SplitThrottle", "1.2.0")]
+[BepInPlugin("com.noms.splitthrottle", "SplitThrottle", "1.3.0")]
 [BepInDependency("experimental.assassin1076.extrainputframework", BepInDependency.DependencyFlags.HardDependency)]
 public class Plugin : BaseUnityPlugin
 {
@@ -55,7 +55,9 @@ public class Plugin : BaseUnityPlugin
 
         cfgEnabled = Config.Bind("General", "Enabled", true, "Enable split throttle mod");
         cfgKeyboardStep = Config.Bind("General", "ThrottleStep", 0.02f,
-            "Throttle change per frame when holding keyboard key");
+            "Throttle change per frame when holding keyboard key. ConfigurationManager " +
+            "UI clamps to 0.01 minimum — for slower ramps, edit this .cfg in Notepad " +
+            "directly (e.g. 0.005). Range is internally unrestricted.");
         cfgShowOverlay = Config.Bind("General", "ShowOverlay", false, "Show throttle overlay on screen");
         cfgDisabledAircraft = Config.Bind("General", "DisabledAircraft", "Chicane,SAH,AttackHelo,Tarantula,Ibis",
             "Comma-separated aircraft names where split throttle is disabled (partial match, case-insensitive)");
@@ -396,6 +398,31 @@ public class SplitThrottleRunner : MonoBehaviour
                     }
                 }
             }
+        }
+        catch { }
+    }
+
+    // Force HMD/HUD throttle indicator to track the actual split throttle state.
+    // The engine FixedUpdate Postfix already writes (left+right)/2 back to
+    // ControlInputs.throttle, but the game's input system overwrites that on
+    // every Update with whatever the player's regular throttle key/axis is at,
+    // so by the time the HMD draws it shows the player's input instead of the
+    // engines' real power. LateUpdate runs after Update + coroutines but before
+    // rendering, so re-syncing here makes the HMD match what the engines are
+    // actually doing.
+    void LateUpdate()
+    {
+        if (!Plugin.cfgEnabled.Value) return;
+        if (!Plugin.splitActive) return;
+
+        var aircraft = Plugin.GetLocalAircraft();
+        if (aircraft == null) return;
+
+        try
+        {
+            var inputs = aircraft.GetInputs();
+            if (inputs != null)
+                inputs.throttle = (Plugin.leftThrottle + Plugin.rightThrottle) * 0.5f;
         }
         catch { }
     }
